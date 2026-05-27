@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # satellite-telemetry-health-monitor
 Real-time satellite telemetry simulator with rule-based fault detection and CSV logging. Built in Python with modular architecture.
 =======
@@ -88,7 +87,7 @@ The fault detector initially checked `WARNING` before `CRITICAL` in every `if/el
 ## Version Roadmap
 
 - **Version 1** ✅ — Telemetry simulator, fault detector, CSV logger
-- **Version 2** — Fault injection, gradual battery drain, sensor freeze simulation
+- **Version 2** ✅ — Fault injection, gradual battery drain, sensor freeze simulation
 - **Version 3** — Health monitoring dashboard with visualization
 - **Version 4** — AI-based anomaly detection using Isolation Forest
 - **Version 5** — Predictive failure detection
