@@ -83,17 +83,25 @@ The system will start generating and logging telemetry every second. Press `Ctrl
 The fault detector initially checked `WARNING` before `CRITICAL` in every `if/elif` chain. This meant a battery reading of 3% would trigger `WARNING` instead of `CRITICAL` because `3 < 20` evaluates to `True` first and Python never reaches the `elif`. Fixed by always checking the most severe condition first.
 
 ---
+Current Progress
 
-## Version Roadmap
+✅ V1 - Telemetry Monitoring System
 
-- **Version 1** ✅ — Telemetry simulator, fault detector, CSV logger
-- **Version 2** ✅ — Fault injection, gradual battery drain, sensor freeze simulation
-- **Version 3** — Health monitoring dashboard with visualization
-- **Version 4** — AI-based anomaly detection using Isolation Forest
-- **Version 5** — Predictive failure detection
+✅ V2 - Fault Injection Engine
 
----
+🚧 V3 - Telemetry Log Analyzer
+   - Log Loader
+   - Summary Statistics
+   - Event Detection
+   - Fault Statistics
+   - Mission Timeline
+   - Health Score
+   - Dashboard (In Progress)
 
+🔜 V4 - Telemetry Visualization Dashboard
+🔜 V5 - Advanced Rule-Based Fault Detection
+🔜 V6 - Packet Communication Simulator
+🔜 V7 - AI Anomaly Detection
 ## Tech Stack
 
 - Python 3.x
