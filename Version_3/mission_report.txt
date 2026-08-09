@@ -1,0 +1,145 @@
+==== MISSION REPORT ====
+Mission File: ../Version_2/data/telemetry_log.csv
+Date and Time file is created: 2026-08-09 16:14:45.197086
+Total Rows: 5200
+Missing Values: 0
+Completeness Percentage: 100.0
+Out_of_Order Timestamps: 0
+Duplicate Timestamps: 0
+Impossible Counts: 0
+
+Parameter: battery
+Rate Of Change: -0.022995723720142906
+Nominal Percentage: 5.8076923076923075
+Trend: falling
+
+Parameter: fuel
+Rate Of Change: -0.026098703624114865
+Nominal Percentage: 18.48076923076923
+Trend: falling
+
+Parameter: temperature
+Rate Of Change: 0.01815626224103169
+Nominal Percentage: 26.019230769230766
+Trend: rising
+
+Parameter: voltage
+Rate Of Change: -0.0012367094780034353
+Nominal Percentage: 72.61538461538461
+Trend: stable
+
+Battery Score: 70
+Thermal Score: 0
+Fuel Score: 85
+Overall Score: 0
+Total Stats: 18
+Fault Frequency Per Hour: 0.18893197480355176
+Recovery Rate: 88.88888888888889
+Most Faulted Parameters: temperature
+Longest Fault Duration: 273413.952967
+temperature: 15
+battery: 2
+fuel: 1
+voltage: 0
+Severity: 12
+Severity: 6
+MET: 0.0
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: MISSION_START
+Severity: Nominal
+Description: Mission started
+MET: 57.133527
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 1724.85059
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: low_battery
+Severity: critical
+Description: Fault Detected on battery
+MET: 1923.128164
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 13292.224116
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: low_fuel
+Severity: critical
+Description: Fault Detected on fuel
+MET: 13498.756141
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 13895.557587
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 66148.17139
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 66547.539677
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 66953.503636
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 67347.07275
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 67766.50283
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 68175.807445
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 68578.637828
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 68977.383243
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: warning
+Description: Fault Detected on temperature
+MET: 69371.794699
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: critical
+Description: Fault Detected on temperature
+MET: 69566.636038
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: low_battery
+Severity: critical
+Description: Fault Detected on battery
+MET: 69614.753932
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: critical
+Description: Fault Detected on temperature
+MET: 342931.519409
+Timestamp: 2026-05-26 17:38:31.294218
+Event Type: high_temperature
+Severity: critical
+Description: Fault Detected on temperature
+MET: 342980.589005
+Timestamp: 2026-05-30 16:54:51.883223
+Event Type: MISSION_END
+Severity: Nominal
+Description: Mission END
