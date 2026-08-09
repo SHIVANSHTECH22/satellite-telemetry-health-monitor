@@ -1,33 +1,19 @@
-import threading
-import time
-from simulator.generator import generate_telemetry_snapshot
-from monitor.fault_detector import fault_check
-from logger.telemetry_logger import log_telemetry
-from dashboard.live_dashboard import update_dashboard
-fault_injection={
-    "battery": False,
-    "voltage": False,
-    "temperature": False,
-    "fuel": False
-}
-a=input("Do you want to inject fault (yes/no)?:")
-if a == "yes":
-        value=input("Enter the parameter you wanted to inject fault\n1.battery\n2.temperature\n3.voltage\n4.fuel\n")
-        if value == "battery":
-            fault_injection["battery"]=True
-        elif value == "temperature":
-            fault_injection["temperature"]=True
-        elif value == "voltage":
-            fault_injection["voltage"]=True
-        else: 
-            fault_injection["fuel"]=True
-def run_simulation():
-    while True:
-        data = generate_telemetry_snapshot(fault_injection)
-        status = fault_check(data)
-        log_telemetry(data, status)
-        time.sleep(1)
-t1=threading.Thread(target=run_simulation)
-t2=threading.Thread(target=update_dashboard, args=("data/telemetry_log.csv",))
-t1.start()
-t2.start()
+import argparse
+from event_detection_file import event_detection
+from fault_statistics_file import fault_statistics
+from generate_report_file import generate_report
+from health_score_file import health_score
+from log_loader_file import log_loader
+from mission_timeline_file import mission_timeline
+from summary_statistics_file import summary_statistics
+parser = argparse.ArgumentParser(description="Satellite Telemetry Log Analyzer V3")
+parser.add_argument("--file", required=True, help="Path to the telemetry CSV log file. Example: --file telemetry_log.csv")
+args=parser.parse_args()
+file_path = args.file
+df, quality_report = log_loader(args.file)
+event_list = event_detection(df)
+stats = summary_statistics(df)
+scores = health_score(df, event_list, stats)
+timeline = mission_timeline(df, event_list)
+fault = fault_statistics(event_list,df)
+generate_report(df, stats, quality_report, event_list, fault, scores, timeline, file_path)
