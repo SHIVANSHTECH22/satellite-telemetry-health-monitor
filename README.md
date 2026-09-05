@@ -1,43 +1,227 @@
-# Satellite Telemetry Health Monitoring System
+# 🛰️ Satellite Telemetry Health Monitoring System
 
-A real-time satellite telemetry simulator with rule-based fault detection, CSV logging, offline mission analysis, a live Mission Control dashboard, and (from V5 onward) a shared cross-version alerting system. Built in Python with a modular architecture, inspired by real aerospace FDIR systems (Fault Detection, Isolation, and Recovery).
+A satellite ground-station monitoring pipeline, built one version at a time — from a simple data simulator to a live mission-control dashboard, with rule-based fault detection, mission analysis, and (eventually) AI-driven anomaly detection along the way.
 
----
-
-## What This System Does
-
-This system simulates a satellite health monitoring pipeline end to end:
-
-- **Generates** simulated telemetry readings for key satellite parameters
-- **Detects faults** against defined thresholds in real time
-- **Logs** everything to CSV with timestamps, mimicking real ground station software
-- **Analyzes** completed mission logs offline — fault events, subsystem health scores, mission timelines, full reports
-- **Visualizes** live telemetry and mission history in a Streamlit Mission Control dashboard, with an optional Grafana telemetry wall
-- **Alerts**, from V5 onward, through a shared alert bus that every future version (V5, V6, V7) writes into and the dashboard reads from — so new fault-detection logic plugs into the existing UI instead of requiring a new one each time
+Inspired by real aerospace **FDIR** systems (**F**ault **D**etection, **I**solation, and **R**ecovery) — the kind of software real ground stations use to watch over spacecraft health.
 
 ---
 
-## System Architecture
+## The Idea, in One Paragraph
+
+Satellites constantly send back readings — temperature, battery charge, voltage, fuel — and something has to watch those numbers and notice when they go dangerously wrong. This project builds that "something," piece by piece: first a way to generate realistic readings, then a way to deliberately break things to test the system, then a way to analyze what happened afterward, then a live dashboard to watch it all happen in real time, and eventually smarter detection that doesn't rely on hardcoded rules at all.
+
+Every version below is a **complete, working, self-contained stage** — not a rough draft. Each one builds directly on the version before it.
+
+---
+
+## Project Status at a Glance
+
+| Version | What it is | Status |
+|---|---|---|
+| V1 | Live telemetry simulator + rule-based fault detector | ✅ Done |
+| V2 | Fault injection engine (deliberately break things, on purpose) | ✅ Done |
+| V3 | Offline mission log analyzer + report generator | ✅ Done |
+| V4 | Live mission control dashboard | ✅ Done |
+| V5 | Advanced, multi-condition fault detection | 🔜 Planned |
+| V6 | Telemetry packet communication simulator | 🔜 Planned |
+| V7 | AI-based anomaly detection | 🔜 Planned |
+
+---
+
+## Version 1 — Telemetry Acquisition & Monitoring System
+
+**In plain terms:** this is the heartbeat of the whole project. Every second, it invents a plausible satellite reading (like a weather simulator, but for spacecraft vitals), checks whether that reading is dangerous, and writes it down with a timestamp — exactly like a real ground station logging incoming data.
+
+**What it actually does:**
+- Generates one telemetry "snapshot" per second: temperature, battery %, voltage, and fuel %, each within a realistic range
+- Checks every reading against fixed safety thresholds and classifies it as **Normal**, **Warning**, or **Critical**
+- Logs every reading — plus its fault status — to a CSV file, with a proper header row and a real timestamp on each line
+
+**The actual thresholds used (these are referenced by every later version too):**
+
+| Parameter | Warning | Critical | Direction |
+|---|---|---|---|
+| Temperature (°C) | > 80 | > 90 | high = bad |
+| Battery (%) | < 20 | < 5 | low = bad |
+| Voltage (V) | < 3.6 | < 3.3 | low = bad |
+| Fuel (%) | < 15 | < 5 | low = bad |
+
+**Folder layout:**
+```
+Version_1/
+├── simulator/generator.py       # generates one reading per second
+├── monitor/fault_detector.py    # classifies each reading
+├── logger/telemetry_logger.py   # writes to CSV
+├── data/telemetry_log.csv       # the actual log (auto-created)
+└── main.py                      # ties it all together in a loop
+```
+
+**Run it:**
+```bash
+cd Version_1
+python main.py
+```
+Leave it running — it logs one row per second. `Ctrl+C` to stop.
+
+**The most important bug this version taught:** the fault checker originally asked "is this a Warning?" *before* asking "is this Critical?" — so a battery reading of 3% (genuinely critical) got logged as a mere Warning, because the code found a match on the Warning check and never bothered checking further. One line of ordering, and a real emergency could go unflagged. **Lesson: always check the most severe condition first.**
+
+---
+
+## Version 2 — Fault Injection Engine
+
+**In plain terms:** V1 only breaks by random chance — most of the time, everything stays Normal. That's a problem if you want to actually test whether your fault detector works. V2 solves this by deliberately, controllably injecting bad readings — sudden battery drops, temperature spikes, sensor freezes — on purpose, so the system's response can be genuinely tested instead of just hoped for.
+
+**Why this matters:** you can't trust a smoke detector you've never actually tested with smoke. V2 is the "test with smoke" version of this project.
+
+**What it adds on top of V1:**
+- Deliberate fault scenarios: sudden battery voltage drops, temperature spikes, abnormal fuel loss, sensor freezes, signal noise, invalid readings
+- These aren't random glitches — they're controlled, repeatable test scenarios
+- The resulting data (faults + normal readings mixed together) becomes the standard test dataset for every later version — a 5,200-row run with 18 injected faults across battery, temperature, and fuel is the reference dataset used to validate V3 and V4.
+
+**Run it:**
+```bash
+cd Version_2
+python main.py
+```
+
+---
+
+## Version 3 — Telemetry Log Analyzer
+
+**In plain terms:** V1 and V2 tell you what's happening right now. V3 is the "black box flight recorder" — you feed it a completed log file (a finished mission, or hours of past data), and it reconstructs the full story: what went wrong, when, how often, how severely, and how the satellite's overall health should be scored.
+
+**What it actually does, step by step:**
+1. **Loads and validates** the CSV — checks for missing values, duplicate or out-of-order timestamps, and physically impossible readings (data quality control, before any analysis happens)
+2. **Computes statistics** per parameter — mean, min, max, standard deviation, rate of change, percentage of time spent Normal, and overall trend
+3. **Detects real fault events** — not single noisy blips, but *sustained* breaches (at least 3 consecutive bad readings in a row), and tracks when the system recovered
+4. **Aggregates fault statistics** — total fault count, how often faults happen per hour, which subsystem faults the most, the longest single fault duration, and a breakdown of Warning vs. Critical severity
+5. **Builds a mission timeline** — a full chronological log of every significant event across the mission
+6. **Scores subsystem health** — Battery, Fuel, and Thermal each start at a perfect 100 and lose points per fault; the Overall score is capped by whichever subsystem is doing worst (a satellite isn't "healthy overall" if one system is failing badly)
+7. **Generates a full report** — JSON files, a CSV fault log, and a plain-English text summary, all in one run
+
+**Folder layout:**
+```
+Version_3/
+├── log_loader_file.py          # step 1
+├── summary_statistics_file.py  # step 2
+├── event_detection_file.py     # step 3
+├── fault_statistics_file.py    # step 4
+├── mission_timeline_file.py    # step 5
+├── health_score_file.py        # step 6
+├── generate_report_file.py     # step 7
+└── main.py                     # runs steps 1-7 in order
+```
+
+**Run it:**
+```bash
+cd Version_3
+python main.py --file ../Version_2/data/telemetry_log.csv
+```
+Produces `health_scores.json`, `mission_timeline.json`, `fault_log.csv`, and `mission_report.txt`.
+
+**Sample output (fault statistics):**
+```python
+{'total_faults': 18, 'faults_per_parameter': {'temperature': 15, 'battery': 2, 'fuel': 1, 'voltage': 0},
+'fault_frequency_per_hour': 0.189, 'recovery_rate': 88.89, 'most_faulted_parameter': 'temperature',
+'longest_fault_duration': 273413.95, 'severity': {'warning': 12, 'critical': 6}}
+```
+
+**Bugs this version taught:**
+- Pandas timestamps aren't valid JSON by default — `TypeError: Object of type Timestamp is not JSON serializable`. Fixed by converting timestamps to plain strings before writing JSON.
+- Building a CSV's column headers from the first item in an empty list crashes with an `IndexError` on perfectly clean, fault-free data. Fixed with a simple "is this list empty?" check first.
+
+---
+
+## Version 4 — Live Mission Control Dashboard
+
+**In plain terms:** everything before this was either a background process or an after-the-fact report. V4 is the part you actually *watch* — a real-time, visual mission control screen, the kind you'd see in a movie: glowing gauges, live graphs, a satellite tracked on a map, and a full replay you can pause and step through.
+
+**What it actually does:**
+- **Live instrument gauges** for temperature, battery, voltage, and fuel — color-coded green/amber/red using the exact same thresholds from V1
+- **A full replay engine** — not just "show me the latest reading," but Reset / Pause / Step controls that let you walk through an entire mission's history frame by frame, at three different speeds
+- **A 3D orbit and ground-track visualizer** — plots a satellite's position against real deep-space network ground station coordinates (Goldstone, Madrid, Canberra). *(Honest caveat: the actual telemetry data has no GPS/position fields, so this orbit is simulated from elapsed mission time using realistic orbital parameters — it's clearly labeled "SIMULATED" in the dashboard, not passed off as real tracking data.)*
+- **A live exception registry and event timeline** — builds up automatically as the replay plays, showing exactly when and where things went wrong
+- **Direct integration with V3** — pulls in the health scores, fault log, and mission report V3 already generated, so the analysis and the live view sit side by side
+
+**Run it:**
+```bash
+cd Version_4
+pip install streamlit plotly pandas
+streamlit run dashboard.py
+```
+(If `streamlit` isn't recognized as a command, try `python -m streamlit run dashboard.py` instead.)
+
+**Tech used:** Streamlit (the app shell, sidebar, tabs, live refresh) and Plotly (every gauge, chart, and the 3D orbit view).
+
+**Bugs this version taught — the "smoothness" story:**
+- The first version auto-refreshed by tearing down and rebuilding the *entire* page every tick, which caused a visible full-page flash on every update. Fixed by scoping the refresh to a single Streamlit "fragment" that updates on its own timer, leaving the rest of the page untouched.
+- An attempt to *further* smooth things out — a CSS fade-in animation — actually made things worse, causing a rhythmic pulsing effect, because the elements it was applied to get rebuilt fresh on every tick rather than updated in place. Removed, and replaced with Plotly's own built-in transition/easing settings on the charts and gauges themselves, which genuinely do animate in place.
+
+---
+
+## Version 5 — Advanced Rule-Based Fault Detection *(planned)*
+
+**In plain terms:** V1's fault detection only looks at one number at a time — "is the temperature too high?" Real failures are often more subtle: a fault might only really matter if *two* things are wrong at once, or one small problem might be an early warning sign of a bigger one about to happen.
+
+**What it will do:**
+- **Multi-condition rules** — e.g., "temperature is high **AND** voltage is low" might be a distinct, more serious failure signature than either alone
+- **Cascading failure logic** — model how one fault increases the likelihood or severity of another (a real spacecraft engineering concept: failures rarely happen in isolation)
+
+---
+
+## Version 6 — Telemetry Packet Communication Simulator *(planned)*
+
+**In plain terms:** every version so far assumes the data just magically arrives, perfectly. In reality, satellite data travels over a real (often unreliable) radio link, packaged into structured "packets" that can get corrupted or lost in transit. V6 simulates that transport layer itself.
+
+**What it will do:**
+- Encode and decode telemetry into structured packets, the way a real satellite communication link would
+- Add checksum validation — a way to detect if a packet arrived corrupted
+- Simulate packet corruption and loss, so the system can be tested against a "noisy," realistic communication channel, not just clean in-memory data
+
+---
+
+## Version 7 — AI-Based Anomaly Detection *(planned)*
+
+**In plain terms:** every version so far detects problems using rules a human wrote in advance ("if X is above Y, it's a fault"). But real failures sometimes look like nothing anyone thought to check for. V7 is about teaching a model to notice "this doesn't look like anything I've seen before" — without being told in advance what "wrong" looks like.
+
+**What it will do:**
+- Train unsupervised machine learning models — **Isolation Forest** and **One-Class SVM** — on the accumulated data from V1 through V6
+- These models learn what "normal" looks like from the data itself, then flag anything that doesn't fit that pattern — including failure modes no fixed threshold rule would ever catch
+- This is the step that moves the project from a purely rule-based FDIR system toward a *learned* one
+
+---
+
+## Tech Stack
+
+| Version(s) | Tools |
+|---|---|
+| V1–V3 | Python 3.x, `pandas`, `random`, `datetime`, `csv`, `json`, `argparse`, `os`, `time` |
+| V4 | + `Streamlit`, `Plotly` |
+| V6 (planned) | packet/checksum logic, likely pure Python |
+| V7 (planned) | + `scikit-learn` (Isolation Forest, One-Class SVM) |
+
+---
+
+## Full Repository Structure
 
 ```
-satellite_telemetry/
+satellite_telemetry_system/
 │
-├── simulator/
-│   └── generator.py               # Generates simulated telemetry data
+├── Version_1/
+│   ├── simulator/generator.py
+│   ├── monitor/fault_detector.py
+│   ├── logger/telemetry_logger.py
+│   ├── data/telemetry_log.csv
+│   └── main.py
 │
-├── monitor/
-│   └── fault_detector.py          # V1/V2 rule-based fault detection engine
+├── Version_2/
+│   ├── simulator/generator.py    # V1 generator + fault injection
+│   ├── monitor/fault_detector.py
+│   ├── logger/telemetry_logger.py
+│   ├── data/telemetry_log.csv
+│   └── main.py
 │
-├── logger/
-│   └── telemetry_logger.py        # Logs telemetry + fault status to CSV
-│
-├── data/
-│   └── telemetry_log.csv          # Auto-generated on first run
-│
-├── shared/
-│   └── alert_bus.py               # write_alert() / read_alerts() — shared by V5, V6, V7 and the dashboard
-│
-├── Version_3/                     # Offline Telemetry Log Analyzer
+├── Version_3/
 │   ├── log_loader_file.py
 │   ├── summary_statistics_file.py
 │   ├── event_detection_file.py
@@ -47,238 +231,18 @@ satellite_telemetry/
 │   ├── generate_report_file.py
 │   └── main.py
 │
-├── Version_4/                     # Streamlit Mission Control Dashboard
-│   └── dashboard/
-│       └── dashboard.py           # Live gauges, replay engine, orbit view, mission report, alerts tab
-│
-├── Version_5/                     # Advanced Rule-Based Fault Detection
-│   ├── rules/
-│   │   └── fault_rules.json       # Thresholds, direction, rate-of-change limits — no hardcoded logic
-│   └── monitor/
-│       ├── rule_engine.py         # Generic engine that evaluates any parameter from fault_rules.json
-│       ├── state_machine.py       # Per-parameter NORMAL/WARNING/CRITICAL/RECOVERING lifecycle
-│       ├── rate_of_change.py      # Trend-based detection (fast-dropping values before they cross a line)
-│       └── compound_rules.py      # Correlated multi-parameter fault logic
-│
-├── Version_6/                     # Packet Communication Simulator (planned)
-│
-├── Version_7/                     # AI Anomaly Detection (planned)
-│
-└── main.py                        # Orchestrates simulator/monitor/logger modules
+└── Version_4/
+    └── dashboard.py
 ```
-
----
-
-## Modules
-
-### `simulator/generator.py`
-Generates one telemetry snapshot per second using `random.uniform()` within realistic satellite parameter ranges. Parameters include temperature, battery, voltage, and fuel. Uses `datetime.now()` for real timestamps.
-
-### `monitor/fault_detector.py` (V1/V2)
-Receives a telemetry snapshot and checks each parameter against defined thresholds. Returns a fault status dictionary with `NORMAL`, `WARNING`, or `CRITICAL` for each parameter.
-
-Original thresholds:
-
-| Parameter        | WARNING | CRITICAL |
-|-------------------|---------|----------|
-| Temperature (°C)  | > 75    | > 90     |
-| Battery (%)       | < 20    | < 10     |
-| Voltage (V)       | < 3.5   | < 3.3    |
-| Fuel (%)          | < 15    | < 5      |
-
-### `logger/telemetry_logger.py`
-Receives the telemetry snapshot and fault status dictionary. Writes one row per reading to `telemetry_log.csv` with full timestamps. Creates the file with headers on first run, then appends on every subsequent run.
-
----
-
-## Version_3 — Telemetry Log Analyzer
-
-Takes a completed telemetry CSV log and produces a full offline mission analysis:
-
-- **`log_loader_file.py`** — loads and validates the CSV, checks for missing values, out-of-order timestamps, duplicates, and physically impossible sensor readings
-- **`summary_statistics_file.py`** — computes mean, min, max, std deviation, rate of change, nominal percentage, and trend per parameter
-- **`event_detection_file.py`** — scans for sustained threshold breaches (minimum 3 consecutive samples), classifies warning vs. critical, tracks recovery
-- **`fault_statistics_file.py`** — aggregates fault counts, frequency, recovery rate, most-faulted parameter, longest fault duration, and severity distribution
-- **`mission_timeline_file.py`** — builds a chronological event log from mission start to end
-- **`health_score_file.py`** — scores Battery, Fuel, and Thermal subsystems (starting at 100, deducted per fault), and computes an Overall score bounded by the worst subsystem
-- **`generate_report_file.py`** — writes `health_scores.json`, `mission_timeline.json`, `fault_log.csv`, and a human-readable `mission_report.txt`
-- **`main.py`** — single entry point that runs the full V3 pipeline end to end
-
----
-
-## Version_4 — Mission Control Dashboard ✅
-
-A Streamlit dashboard (`dashboard.py`, ~630 lines) that brings the telemetry pipeline to life visually:
-
-- **Tabbed layout** — Overview / Graphs / Mission Report
-- **Frame-by-frame replay engine** — Reset, Pause, Step, 3 speed presets, auto-loop
-- **Live gauges** matching the real `fault_detector.py` thresholds
-- **Simulated 3D orbit tracker**
-- **V3 report integration** — pulls in health scores, mission timeline, and fault stats directly
-- **Smooth live updates** via `st.fragment(run_every=...)` + Plotly `transition`/`easing`
-- **Alerts tab (from V5 onward)** — reads from `shared/alert_bus.py`, showing a live, filterable feed of alerts from every connected version, color-coded by severity with a source-version badge, plus an active-alerts counter in the sidebar
-
-**Known-fixed issues:** full-page blink (fixed via `st.fragment`), blank buttons (fixed via plain-text labels + forced CSS), a fade-in CSS animation that backfired into rhythmic flicker (removed).
-
-**Run:**
-```bash
-pip install streamlit plotly pandas
-streamlit run dashboard.py
-# or: python -m streamlit run dashboard.py   (if PATH issues)
-```
-
----
-
-## Version_5 — Advanced Rule-Based Fault Detection 🚧
-
-V5 pushes rule-based fault detection as far as it can go before ML (V7) takes over — and integrates its output into the existing dashboard rather than building a new interface.
-
-**Core upgrades over the V1/V2 detector:**
-
-1. **Config-driven rule engine** — thresholds move out of hardcoded `if/elif` chains and into `fault_rules.json` (parameter, warning/critical thresholds, direction). `rule_engine.py` becomes generic: it reads rules instead of encoding them, permanently fixing the class of bug caused by hardcoded severity-check ordering.
-2. **Per-parameter state machine** — each parameter moves through `NORMAL → WARNING → CRITICAL → RECOVERING → NORMAL` instead of being reclassified independently every second, adding hysteresis so boundary flickering doesn't spam fault toggles.
-3. **Rate-of-change rules** — flags values trending dangerously even before they cross a threshold (e.g. battery still above the warning line but dropping fast).
-4. **Compound/correlated fault rules** — a small set of hand-written rules for parameter combinations that are worse together than apart (e.g. high temperature + low voltage).
-5. **Severity escalation over time** — a WARNING sustained past a duration limit auto-escalates to CRITICAL even without a raw threshold breach.
-
-**Alert integration:** every rule trigger, state transition, and escalation writes a row into the shared alert bus (see below), which the V4 dashboard's Alerts tab already displays.
-
----
-
-## Shared Alert Bus (V5, V6, V7 → Dashboard)
-
-Instead of every future version building its own alert UI, V5 introduces one shared, append-only alert stream that V6 and V7 plug into later at zero extra dashboard cost.
-
-**`shared/alert_bus.py`** exposes:
-- `write_alert(...)` — used by any version to emit an alert
-- `read_alerts(...)` — used by the dashboard to tail/query the feed
-
-**Shared schema** (one row per alert):
-
-```
-timestamp, source_version, parameter, severity, rule_type, message, value, resolved_at
-```
-
-| Field | Meaning |
-|---|---|
-| `source_version` | `"V5"`, `"V6"`, `"V7"` — lets the dashboard badge/color-code origin |
-| `rule_type` | `"threshold"`, `"rate_of_change"`, `"compound"`, `"packet_loss"`, `"anomaly_score"` — one field spans all versions' alert kinds |
-| `resolved_at` | Nullable; distinguishes active vs. historical alerts and lets duration be computed |
-
-**How later versions plug in:**
-- **V6** (packet comms) — packet loss, out-of-order arrival, checksum/corruption failures write into the same bus with `rule_type="packet_loss"` etc.
-- **V7** (AI anomaly detection) — anomaly-score threshold breaches write in with `rule_type="anomaly_score"`, `value` holding the score
-
-Because the schema and the dashboard's Alerts tab are built once in V5, V6 and V7 only need to call `write_alert()` — no dashboard rework required.
-
----
-
-## Version_6 — Packet Communication Simulator 🔜
-Planned: simulates realistic ground-to-satellite / satellite-to-ground packet transmission, including loss, corruption, and out-of-order delivery, feeding faults into the shared alert bus.
-
-## Version_7 — AI Anomaly Detection 🔜
-Planned: replaces/augments static and rate-of-change rules with a learned model (e.g. rolling z-score or isolation forest) trained on telemetry history, flagging anomalies that don't cleanly fit a hand-written rule — feeding into the same shared alert bus.
-
----
-
-## Telemetry Wall (Grafana) 🚧
-A parallel, ops-style visualization layer, separate from the Streamlit dashboard:
-- Docker Desktop → Grafana container using the `marcusolsson-csv-datasource` plugin, reading `telemetry_log.csv` directly (no database)
-- Gauge panels (temperature/battery/voltage/fuel) with thresholds matching `fault_detector.py`
-- Two time-series panels (temp+battery, voltage+fuel)
-- Auto-refresh every 5–10s
-- Kiosk-mode URL (`?kiosk`) for embedding
-- Optional alerting → Discord/Slack/email contact points
-
-Deferred: a fuller InfluxDB + Docker Compose pipeline with additional real parameters (propellant, propulsion), and public access via Cloudflare Tunnel.
-
----
-
-## How To Run
-
-**Live simulator (V1/V2):**
-```bash
-python main.py
-```
-Generates and logs telemetry every second. Press `Ctrl + C` to stop.
-
-**Offline log analyzer (V3):**
-```bash
-cd Version_3
-python main.py --file ../Version_1/data/telemetry_log.csv
-```
-Produces `health_scores.json`, `mission_timeline.json`, `fault_log.csv`, and `mission_report.txt`.
-
-**Dashboard (V4):**
-```bash
-cd Version_4/dashboard
-pip install streamlit plotly pandas
-streamlit run dashboard.py
-```
-
----
-
-## Sample Output
-
-**Live simulator:**
-```
-{'timestamp': datetime.datetime(2026, 5, 23, 14, 42, 5), 'temperature': 71.4, 'battery': 97.5, 'voltage': 4.6, 'fuel': 64.5}
-{'temperature': 'Normal', 'battery': 'Normal', 'voltage': 'Normal', 'fuel': 'Normal'}
-```
-
-**V3 analyzer (fault_stats excerpt):**
-```json
-{"total_faults": 18, "faults_per_parameter": {"temperature": 15, "battery": 2, "fuel": 1, "voltage": 0},
-"fault_frequency_per_hour": 0.189, "recovery_rate": 88.89, "most_faulted_parameter": "temperature",
-"longest_fault_duration": 273413.95, "severity": {"warning": 12, "critical": 6}}
-```
-
----
-
-## Hardest Bugs Fixed
-
-- **Severity check order (V1/V2)** — the fault detector initially checked WARNING before CRITICAL in every if/elif chain, so a battery reading of 3% triggered WARNING instead of CRITICAL because `3 < 20` evaluated `True` first and Python never reached the `elif`. Fixed by always checking the most severe condition first — and structurally eliminated in V5 by moving to a config-driven rule engine.
-- **Timestamp JSON serialization (V3)** — `mission_timeline.json` failed with `TypeError: Object of type Timestamp is not JSON serializable`, since `pd.to_datetime()` converts the timestamp column into pandas `Timestamp` objects. Fixed by converting timestamps to strings before/during the JSON dump.
-- **Empty event list guard (V3)** — building CSV fieldnames from `event_list[0].keys()` crashed with an `IndexError` on clean data with zero faults. Fixed with a length check before attempting the CSV write.
-- **Streamlit full-page blink (V4)** — fixed via `st.fragment(run_every=...)` instead of full reruns.
-- **Blank dashboard buttons (V4)** — fixed via plain-text labels + forced CSS.
-- **Fade-in flicker (V4)** — a CSS fade-in animation caused rhythmic flicker on live updates; removed.
-
----
-
-## Current Progress
-
-- ✅ **V1** — Telemetry Monitoring System
-- ✅ **V2** — Fault Injection Engine
-- ✅ **V3** — Telemetry Log Analyzer (Log Loader, Summary Statistics, Event Detection, Fault Statistics, Mission Timeline, Health Score, Report Generator, `main.py` entry point — tested end to end on clean and fault-injected data)
-- ✅ **V4** — Telemetry Visualization Dashboard (Streamlit, tabbed layout, replay engine, live gauges, simulated orbit tracker, V3 report integration)
-- 🚧 **V5** — Advanced Rule-Based Fault Detection + shared alert bus integration into the V4 dashboard
-- 🔜 **V6** — Packet Communication Simulator (feeds shared alert bus)
-- 🔜 **V7** — AI Anomaly Detection (feeds shared alert bus)
-- 🚧 **Grafana Telemetry Wall** — parallel ops-style visualization, Docker/WSL setup in progress
-
----
-
-## Tech Stack
-
-- **Python 3.x**
-- `pandas` — telemetry data loading and analysis (V3+)
-- `random` — telemetry value simulation
-- `datetime` — real-time timestamping
-- `csv` / `json` — structured data logging and reporting
-- `argparse` — command-line interface
-- `os`, `time` — file handling and loop interval control
-- `streamlit`, `plotly` — Mission Control dashboard (V4+)
-- `Docker`, `Grafana` (`marcusolsson-csv-datasource` plugin) — telemetry wall
 
 ---
 
 ## Domain Context
 
-This project is inspired by real aerospace FDIR systems (Fault Detection, Isolation, and Recovery) used in satellite ground station software. The modular architecture mirrors how real telemetry pipelines separate data acquisition, fault analysis, and data persistence into independent components — and from V5 onward, a shared alerting layer that later fault-detection strategies (packet-level, then AI-based) plug into without requiring a new interface each time.
+This project is modeled on real aerospace **FDIR** (Fault Detection, Isolation & Recovery) systems used in satellite ground-station software. The version-by-version structure mirrors how real telemetry pipelines are actually built: data acquisition, fault analysis, mission reporting, live visualization, and (eventually) learned anomaly detection are treated as separate, independently testable stages — not one giant script.
 
 ---
 
 ## Author
 
-Shivansh — building toward aerospace AI systems, one module at a time.
+**Shivansh** — Data Science undergraduate, building toward aerospace AI systems, one module at a time.
